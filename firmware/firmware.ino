@@ -117,8 +117,8 @@ void loop() {
 
   if (central) {
     if (central.connected()) {
-      // Send data every 1 second
-      if (millis() - lastTxMillis > 1000) {
+      // Send data every 200ms (5 times a second) for real-time display
+      if (millis() - lastTxMillis > 200) {
         lastTxMillis = millis();
         sendDataOverBLE();
       }
@@ -127,7 +127,8 @@ void loop() {
 }
 
 void initBMP() {
-  if (!bmp.begin_I2C()) {
+  // Try default address 0x77 first, then alternate 0x76 (common for third-party breakouts)
+  if (!bmp.begin_I2C(0x77) && !bmp.begin_I2C(0x76)) {
     Serial.println("Could not find a valid BMP3 sensor, check wiring!");
     bmpOk = false;
   } else {
