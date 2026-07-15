@@ -105,6 +105,8 @@ function onDisconnected() {
     setAlert('ВНИМАНИЕ', 'Соединение потеряно.', 'orange');
 }
 
+const rawBleData = document.getElementById('raw-ble-data');
+
 function handleData(event) {
     let value = event.target.value;
     let decoder = new TextDecoder('utf-8');
@@ -118,6 +120,9 @@ function handleData(event) {
         let jsonStr = dataBuffer.substring(0, lastBrace + 1);
         dataBuffer = dataBuffer.substring(lastBrace + 1);
         
+        // Show raw packet in the debug console
+        rawBleData.innerText = jsonStr;
+        
         // Split by '} {' if multiple JSONs got batched
         let parts = jsonStr.replace(/}\s*{/g, '}|{').split('|');
         for (let p of parts) {
@@ -126,6 +131,7 @@ function handleData(event) {
                 updateDashboard(data);
             } catch(e) {
                 console.error("JSON parse error:", e);
+                rawBleData.innerText = "Error: " + e.message + "\nData: " + jsonStr;
             }
         }
     }
