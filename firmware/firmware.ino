@@ -51,8 +51,33 @@ bool maxOk = false;
 
 void setup() {
   Serial.begin(115200);
+  delay(2000); // Wait for Serial Monitor to connect
   Wire.begin();
   
+  // I2C Scanner
+  Serial.println("Scanning I2C bus...");
+  int nDevices = 0;
+  for (byte address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
+    byte error = Wire.endTransmission();
+    if (error == 0) {
+      Serial.print("I2C device found at address 0x");
+      if (address < 16) Serial.print("0");
+      Serial.print(address, HEX);
+      Serial.println(" !");
+      nDevices++;
+    } else if (error == 4) {
+      Serial.print("Unknown I2C error at address 0x");
+      if (address < 16) Serial.print("0");
+      Serial.println(address, HEX);
+    }
+  }
+  if (nDevices == 0) {
+    Serial.println("No I2C devices found. Check wiring!");
+  } else {
+    Serial.println("I2C scan complete.");
+  }
+
   // Set ADC resolution for battery voltage
   analogReadResolution(12);
 
@@ -83,6 +108,7 @@ void setup() {
 }
 
 void loop() {
+  BLE.poll();
   BLEDevice central = BLE.central();
 
   // Always read and process sensors to keep them responsive, even if disconnected.
