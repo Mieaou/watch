@@ -1,0 +1,293 @@
+:root {
+    --bg-dark: #0f111a;
+    --card-bg: rgba(255, 255, 255, 0.03);
+    --card-border: rgba(255, 255, 255, 0.08);
+    --text-main: #ffffff;
+    --text-muted: #8b92a5;
+    
+    --accent: #5e6ad2;
+    --accent-glow: rgba(94, 106, 210, 0.4);
+    
+    /* Logic Matrix Colors */
+    --color-green: #2ecc71;
+    --color-green-bg: rgba(46, 204, 113, 0.15);
+    --color-yellow: #f1c40f;
+    --color-yellow-bg: rgba(241, 196, 15, 0.15);
+    --color-orange: #e67e22;
+    --color-orange-bg: rgba(230, 126, 34, 0.15);
+    --color-red: #e74c3c;
+    --color-red-bg: rgba(231, 76, 60, 0.15);
+    --color-default: var(--card-bg);
+
+    --radius: 16px;
+    --font: 'Outfit', sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+#app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* ================= HEADER ================= */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#battery-status {
+    font-size: 14px;
+    color: var(--color-green);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-green-bg);
+    padding: 4px 10px;
+    border-radius: 20px;
+    transition: opacity 0.3s;
+}
+
+/* ================= BUTTONS ================= */
+.btn {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--text-main);
+    font-family: var(--font);
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.btn.primary:hover {
+    filter: brightness(1.1);
+}
+
+.icon-btn {
+    padding: 8px 12px;
+    font-size: 18px;
+    border-radius: 50%;
+}
+
+/* ================= TABS ================= */
+.mode-toggle {
+    display: flex;
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 20px;
+}
+
+.tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: var(--font);
+    padding: 10px 0;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.tab.active {
+    background: rgba(255,255,255,0.1);
+    color: var(--text-main);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* ================= CARDS ================= */
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.metric {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform 0.2s ease;
+}
+.metric:active {
+    transform: scale(0.97);
+}
+
+.metric .label {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric .value {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.metric .unit {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+/* ================= ALERT CARD ================= */
+.alert-card {
+    margin-bottom: 24px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    background: var(--color-default);
+    border-left: 4px solid var(--card-border);
+}
+
+.alert-card.green { background: var(--color-green-bg); border-left-color: var(--color-green); }
+.alert-card.yellow { background: var(--color-yellow-bg); border-left-color: var(--color-yellow); }
+.alert-card.orange { background: var(--color-orange-bg); border-left-color: var(--color-orange); }
+.alert-card.red { background: var(--color-red-bg); border-left-color: var(--color-red); }
+
+.alert-header {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
+.alert-body p {
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+/* ================= MODAL ================= */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.modal.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 400px;
+    transform: translateY(0);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal.hidden .modal-content {
+    transform: translateY(20px);
+}
+
+.modal-content h2 {
+    margin-bottom: 20px;
+    font-size: 20px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.input-group label {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.input-group input {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--card-border);
+    color: var(--text-main);
+    padding: 12px;
+    border-radius: 8px;
+    font-family: var(--font);
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.input-group input:focus {
+    border-color: var(--accent);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Utilities */
+.hidden {
+    display: none !important;
+}
+
+.view {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
