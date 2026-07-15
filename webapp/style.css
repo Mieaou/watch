@@ -1,12 +1,12 @@
 :root {
-    --bg-dark: #0f111a;
+    --bg-dark: #1b112c;
     --card-bg: rgba(255, 255, 255, 0.03);
     --card-border: rgba(255, 255, 255, 0.08);
     --text-main: #ffffff;
     --text-muted: #8b92a5;
     
-    --accent: #5e6ad2;
-    --accent-glow: rgba(94, 106, 210, 0.4);
+    --accent: #9b5de5;
+    --accent-glow: rgba(155, 93, 229, 0.4);
     
     /* Logic Matrix Colors */
     --color-green: #2ecc71;
