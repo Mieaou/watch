@@ -44,6 +44,11 @@ uint16_t co2 = 0;
 int currentSpO2 = 0;
 int currentHR = 0;
 
+// Sensor Status Flags
+bool bmpOk = false;
+bool scdOk = false;
+bool maxOk = false;
+
 void setup() {
   Serial.begin(115200);
   Wire.begin();
@@ -98,72 +103,82 @@ void loop() {
 void initBMP() {
   if (!bmp.begin_I2C()) {
     Serial.println("Could not find a valid BMP3 sensor, check wiring!");
+    bmpOk = false;
   } else {
     bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
     bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
     bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
     bmp.setOutputDataRate(BMP3_ODR_50_HZ);
+    bmpOk = true;
   }
 }
 
 void initSCD41() {
   scd4x.begin(Wire, 0x62);
   // stop potentially previously started measurement
-  scd4x.stopPeriodicMeasurement();
-  scd4x.startPeriodicMeasurement();
+  uint16_t err = scd4x.stopPeriodicMeasurement();
+  if (err == 0) {
+    scd4x.startPeriodicMeasurement();
+    scdOk = true;
+  } else {
+    Serial.println("Could not initialize SCD41!");
+    scdOk = false;
+  }
 }
 
 void initMAX30105() {
   if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) {
     Serial.println("MAX30105 was not found. Please check wiring/power. ");
+    maxOk = false;
   } else {
     particleSensor.setup(); 
     particleSensor.setPulseAmplitudeRed(0x0A);
     particleSensor.setPulseAmplitudeGreen(0); 
+    maxOk = true;
   }
 }
 
 void processSensors() {
   // BMP388
-  if (bmp.performReading()) {
+  if (bmpOk && bmp.performReading()) {
     currentPressure = bmp.pressure / 100.0; // convert to hPa
   }
 
   // SCD41
-  bool isDataReady = false;
-  scd4x.getDataReadyStatus(isDataReady);
-  if (isDataReady) {
-    float temp, hum;
-    scd4x.readMeasurement(co2, temp, hum);
-  }
-
-  // MAX30105 (Pulse Rate & very basic SpO2 placeholder)
-  // For a true robust SpO2 algorithm, consider MAX32664 or an advanced SpO2 algorithm loop.
-  // We use a simplified approximation here for demonstration.
-  long irValue = particleSensor.getIR();
-  long redValue = particleSensor.getRed();
-  
-  if (checkForBeat(irValue) == true) {
-    long delta = millis() - lastBeat;
-    lastBeat = millis();
-    beatsPerMinute = 60 / (delta / 1000.0);
-    if (beatsPerMinute < 255 && beatsPerMinute > 20) {
-      rates[rateSpot++] = (byte)beatsPerMinute;
-      rateSpot %= RATE_SIZE;
-      beatAvg = 0;
-      for (byte x = 0 ; x < RATE_SIZE ; x++) beatAvg += rates[x];
-      beatAvg /= RATE_SIZE;
+  if (scdOk) {
+    bool isDataReady = false;
+    scd4x.getDataReadyStatus(isDataReady);
+    if (isDataReady) {
+      float temp, hum;
+      scd4x.readMeasurement(co2, temp, hum);
     }
   }
 
-  // Simplified SpO2 estimation based on R (DC/AC ratio)
-  // In production, use the Maxim algorithm provided in SparkFun library examples.
-  if (irValue > 50000) { 
-    currentHR = beatAvg;
-    currentSpO2 = 98; // Hardcoded default placeholder for demonstration when finger is present. 
-  } else {
-    currentHR = 0;
-    currentSpO2 = 0;
+  // MAX30105
+  if (maxOk) {
+    long irValue = particleSensor.getIR();
+    long redValue = particleSensor.getRed();
+    
+    if (checkForBeat(irValue) == true) {
+      long delta = millis() - lastBeat;
+      lastBeat = millis();
+      beatsPerMinute = 60 / (delta / 1000.0);
+      if (beatsPerMinute < 255 && beatsPerMinute > 20) {
+        rates[rateSpot++] = (byte)beatsPerMinute;
+        rateSpot %= RATE_SIZE;
+        beatAvg = 0;
+        for (byte x = 0 ; x < RATE_SIZE ; x++) beatAvg += rates[x];
+        beatAvg /= RATE_SIZE;
+      }
+    }
+
+    if (irValue > 50000) { 
+      currentHR = beatAvg;
+      currentSpO2 = 98; // Placeholder for when finger is present
+    } else {
+      currentHR = 0;
+      currentSpO2 = 0;
+    }
   }
 }
 
@@ -210,6 +225,11 @@ int getBatteryPercentage() {
 void sendDataOverBLE() {
   int batt = getBatteryPercentage();
   
+  int errMask = 0;
+  if (!bmpOk) errMask |= 1;
+  if (!scdOk) errMask |= 2;
+  if (!maxOk) errMask |= 4;
+
   // Construct JSON string
   String json = "{";
   json += "\"hr\":" + String(currentHR) + ",";
@@ -217,7 +237,8 @@ void sendDataOverBLE() {
   json += "\"p\":" + String(currentPressure, 2) + ",";
   json += "\"co2\":" + String(co2) + ",";
   json += "\"dp\":" + String(deltaP3h, 2) + ",";
-  json += "\"b\":" + String(batt);
+  json += "\"b\":" + String(batt) + ",";
+  json += "\"e\":" + String(errMask);
   json += "}";
 
   txChar.writeValue(json);

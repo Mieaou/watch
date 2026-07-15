@@ -138,6 +138,7 @@ function updateDashboard(data) {
     let co2 = data.co2 || 0;
     let dp = data.dp || 0;
     let b = data.b !== undefined ? data.b : '--';
+    let e = data.e !== undefined ? data.e : 0;
     
     // Update Simple UI
     vHr.innerText = hr || '--';
@@ -159,7 +160,7 @@ function updateDashboard(data) {
     vDp.innerText = dp.toFixed(1);
     
     // Evaluate Logic Engine
-    let advice = evaluateLogic(hr, spo2, p, co2, dp, sbp);
+    let advice = evaluateLogic(hr, spo2, p, co2, dp, sbp, e);
     setAlert(advice.type, advice.text, advice.color);
 }
 

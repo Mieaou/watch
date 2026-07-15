@@ -1,6 +1,15 @@
 // logicEngine.js
 
-function evaluateLogic(hr, spo2, p, co2, dp, sbp) {
+function evaluateLogic(hr, spo2, p, co2, dp, sbp, errMask = 0) {
+    // Hardware Errors
+    if (errMask > 0) {
+        let offlineList = [];
+        if (errMask & 1) offlineList.push("Барометр BMP388");
+        if (errMask & 2) offlineList.push("Датчик CO2 SCD41");
+        if (errMask & 4) offlineList.push("Пульсоксиметр MAX30102");
+        return { type: 'ОШИБКА', text: `Не обнаружены датчики на шине I2C: ${offlineList.join(', ')}. Проверьте подключение/питание!`, color: 'red' };
+    }
+
     // Quality Checks
     if (spo2 > 0 && (spo2 < 50 || spo2 > 100 || hr < 30 || hr > 220)) {
         return { type: 'ОШИБКА', text: 'Датчик пульсоксиметра смещен. Поправьте устройство на пальце/запястье.', color: 'red' };
