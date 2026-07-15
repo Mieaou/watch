@@ -1,4 +1,4 @@
-// app.js
+// app.js - trigger rebuild for github pages
 const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const NUS_TX_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
