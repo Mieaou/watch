@@ -3,7 +3,6 @@
 #include <Adafruit_BMP3XX.h>
 #include <SensirionI2cScd4x.h>
 #include "MAX30105.h" // SparkFun MAX3010x library
-#include "heartRate.h" // SparkFun MAX3010x library for HR calculation
 #include "spo2_algorithm.h" // SparkFun MAX3010x library for SpO2 calculation
 
 // ==========================================
@@ -36,18 +35,17 @@ uint32_t redBuffer[100]; // red LED sensor data
 int32_t bufferLength = 100; // data length
 int32_t spo2; // SPO2 value
 int8_t validSPO2; // indicator to show if the SPO2 calculation is valid
-int32_t dummyHR; // heart rate value (unused, we use fast checkForBeat)
-int8_t dummyValidHR; // indicator to show if the heart rate calculation is valid
+int32_t heartRate; // heart rate value
+int8_t validHeartRate; // indicator to show if the heart rate calculation is valid
 int sampleCount = 0; // current index in the buffer
 
-// Fast HR tracking variables
-const byte RATE_SIZE = 4;
-byte rates[RATE_SIZE];
-byte rateSpot = 0;
-long lastBeat = 0;
-float beatsPerMinute;
-int beatAvg;
+// Sensor state
 bool fingerPresent = false;
+
+// Finger detection hysteresis thresholds (IR counts at 18-bit ADC scale)
+// ON threshold > OFF threshold to prevent state flickering at boundary
+const long IR_FINGER_ON  = 25000; // IR > 25000: finger confirmed on sensor
+const long IR_FINGER_OFF = 15000; // IR < 15000: finger confirmed removed
 
 // Variables
 float currentPressure = 0.0;
@@ -60,6 +58,24 @@ int currentHR = 0;
 bool bmpOk = false;
 bool scdOk = false;
 bool maxOk = false;
+
+// LiPo discharge curve — 11-point piecewise linear approximation
+// Breakpoints derived from typical 3.7V LiPo manufacturer discharge data (0.5C rate)
+// Maps measured voltage -> state of charge (%)
+const float BATT_CURVE[][2] = {
+    {4.20f, 100.0f},
+    {4.06f,  90.0f},
+    {3.98f,  80.0f},
+    {3.86f,  70.0f},
+    {3.78f,  60.0f},
+    {3.71f,  50.0f},
+    {3.63f,  40.0f},
+    {3.54f,  30.0f},
+    {3.45f,  20.0f},
+    {3.35f,  10.0f},
+    {3.20f,   0.0f}
+};
+const int BATT_CURVE_LEN = 11;
 
 void setup() {
   // SAFETY: Seeed Studio Xiao D14 Hardware Bug Prevention
@@ -152,11 +168,8 @@ void initMAX30105() {
     maxOk = false;
   } else {
     // Configure sensor for SpO2 (Red + IR)
-    // Default setup is fine, but we ensure both LEDs are powered
-    particleSensor.setup(60, 4, 2, 100, 411, 4096); // LED mode 2 (Red + IR), 100Hz, 16-bit ADC
-    particleSensor.setPulseAmplitudeRed(0x0A); // Turn Red LED to low to medium
-    particleSensor.setPulseAmplitudeIR(0x0A);  // Turn IR LED to low to medium
-    particleSensor.setPulseAmplitudeGreen(0);  // Turn off Green LED
+    // powerLevel = 0x1F (~6.4mA) gives a strong signal for reliable SpO2
+    particleSensor.setup(0x1F, 4, 2, 100, 411, 4096); // LED mode 2 (Red + IR), 100Hz, 16-bit ADC
     maxOk = true;
   }
 }
@@ -188,38 +201,29 @@ void processSensors() {
       irBuffer[sampleCount] = irValue;
       particleSensor.nextSample(); // We're finished with this sample so move to next sample
       
-      // Fast HR Check (per sample)
-      if (irValue > 50000) {
+      // Finger detection with hysteresis: prevents state flickering near the boundary
+      if (irValue > IR_FINGER_ON) {
         fingerPresent = true;
-        if (checkForBeat(irValue) == true) {
-          long delta = millis() - lastBeat;
-          lastBeat = millis();
-          beatsPerMinute = 60 / (delta / 1000.0);
-          if (beatsPerMinute < 255 && beatsPerMinute > 20) {
-            rates[rateSpot++] = (byte)beatsPerMinute;
-            rateSpot %= RATE_SIZE;
-            beatAvg = 0;
-            for (byte x = 0 ; x < RATE_SIZE ; x++) beatAvg += rates[x];
-            beatAvg /= RATE_SIZE;
-            currentHR = beatAvg; // Update HR instantly!
-          }
-        }
-      } else {
+      } else if (irValue < IR_FINGER_OFF) {
         fingerPresent = false;
         currentHR = 0;
         currentSpO2 = 0;
       }
+      // Between thresholds: retain current state (no change)
 
       sampleCount++;
       
       if (sampleCount >= 100) {
-        // Calculate SpO2 using Maxim's algorithm
-        maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &dummyHR, &dummyValidHR);
+        // Calculate SpO2 and HR using Maxim's algorithm
+        maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
         
         // Update variables if finger is present and values are valid
         if (fingerPresent) {
           if (validSPO2 == 1 && spo2 > 50 && spo2 <= 100) {
             currentSpO2 = spo2;
+          }
+          if (validHeartRate == 1 && heartRate > 30 && heartRate < 220) {
+            currentHR = heartRate;
           }
         }
 
@@ -261,17 +265,26 @@ void updateHistory() {
 
 int getBatteryPercentage() {
   // Read battery voltage on PIN_VBAT for XIAO nRF52840
+  // The VBAT pin goes through a 1/2 voltage divider on this board,
+  // so the actual battery voltage is 2x the measured voltage.
   #ifdef PIN_VBAT
     int raw = analogRead(PIN_VBAT);
-    float voltage = raw * (3.3 / 4095.0) * 2.0; 
+    float voltage = raw * (3.3f / 4095.0f) * 2.0f;
     
-    // Simple linear approx for LiPo (3.2V - 4.2V)
-    int pct = (voltage - 3.2) / (4.2 - 3.2) * 100;
-    if (pct > 100) pct = 100;
-    if (pct < 0) pct = 0;
-    return pct;
+    // Clamp to valid LiPo range
+    if (voltage >= BATT_CURVE[0][0]) return 100;
+    if (voltage <= BATT_CURVE[BATT_CURVE_LEN - 1][0]) return 0;
+    
+    // Piecewise linear interpolation through the LiPo discharge curve
+    for (int i = 0; i < BATT_CURVE_LEN - 1; i++) {
+      if (voltage <= BATT_CURVE[i][0] && voltage >= BATT_CURVE[i + 1][0]) {
+        float t = (BATT_CURVE[i][0] - voltage) / (BATT_CURVE[i][0] - BATT_CURVE[i + 1][0]);
+        return (int)(BATT_CURVE[i][1] + t * (BATT_CURVE[i + 1][1] - BATT_CURVE[i][1]));
+      }
+    }
+    return 0;
   #else
-    return 100; // Mock if not defined
+    return 100; // Fallback: PIN_VBAT not defined on this target
   #endif
 }
 

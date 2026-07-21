@@ -103,7 +103,8 @@
                 <input type="number" id="input-sbp" value="120" min="60" max="250">
             </div>
             <div class="modal-actions">
-                <button id="btn-save-settings" class="btn primary">Save & Close</button>
+                <button id="btn-view-docs" class="btn docs-btn">📄 Algorithm Spec</button>
+                <button id="btn-save-settings" class="btn primary">Save &amp; Close</button>
             </div>
         </div>
     </div>
@@ -119,6 +120,17 @@
         </div>
     </div>
 
+    <!-- Documentation Modal -->
+    <div id="modal-docs" class="modal hidden">
+        <div class="modal-content docs-modal-content card">
+            <div class="docs-modal-toolbar">
+                <button id="btn-close-docs" class="btn icon-btn">✕</button>
+            </div>
+            <div id="docs-body" class="docs-body"></div>
+        </div>
+    </div>
+
+    <script src="docs.js"></script>
     <script src="scenarios.js"></script>
     <script src="mathCore.js"></script>
     <script src="logicEngine.js"></script>

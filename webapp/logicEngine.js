@@ -27,7 +27,8 @@ function evaluateLogic(hr, spo2, p, co2, dp, sbp, errMask = 0) {
     let h = 0, expSpo2 = 0, ss = 0;
     if (p > 0) {
         h = calculateAltitude(p);
-        expSpo2 = calculateExpectedSpO2(h);
+        // calculateExpectedSpO2 takes barometric pressure directly (hPa)
+        expSpo2 = calculateExpectedSpO2(p);
     }
     if (hr > 0 && spo2 > 0 && sbp > 0) {
         ss = calculateSystemicShock(hr, spo2, sbp);
@@ -56,9 +57,11 @@ function evaluateLogic(hr, spo2, p, co2, dp, sbp, errMask = 0) {
     // Evaluate all categories
     evaluateCategory(scenarios.cardio);
     
-    if (p > 950) {
+    // Altitude threshold: 845 hPa ≈ 1500 m — WHO-defined lower boundary
+    // for clinically significant hypobaric hypoxia effects.
+    if (p > 845) {
         evaluateCategory(scenarios.seaLevel);
-    } else if (p > 0 && p <= 950) {
+    } else if (p > 0 && p <= 845) {
         evaluateCategory(scenarios.altitude);
     }
     

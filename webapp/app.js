@@ -14,6 +14,11 @@ const infoTitle = document.getElementById('info-title');
 const infoDesc = document.getElementById('info-desc');
 const btnCloseInfo = document.getElementById('btn-close-info');
 
+const modalDocs = document.getElementById('modal-docs');
+const docsBody = document.getElementById('docs-body');
+const btnViewDocs = document.getElementById('btn-view-docs');
+const btnCloseDocs = document.getElementById('btn-close-docs');
+
 const tabSimple = document.getElementById('tab-simple');
 const tabAdvanced = document.getElementById('tab-advanced');
 const viewSimple = document.getElementById('view-simple');
@@ -56,6 +61,21 @@ btnSaveSettings.addEventListener('click', () => {
 
 btnCloseInfo.addEventListener('click', () => {
     modalInfo.classList.add('hidden');
+});
+
+// Documentation modal
+btnViewDocs.addEventListener('click', () => {
+    // Populate once on first open
+    if (!docsBody.innerHTML) {
+        docsBody.innerHTML = ALGORITHM_SPEC_HTML;
+    }
+    docsBody.scrollTop = 0;
+    modalSettings.classList.add('hidden');
+    modalDocs.classList.remove('hidden');
+});
+
+btnCloseDocs.addEventListener('click', () => {
+    modalDocs.classList.add('hidden');
 });
 
 document.querySelectorAll('.btn-info').forEach(btn => {
@@ -193,12 +213,12 @@ function updateDashboard(data) {
     
     // Update Advanced UI (Math Core)
     let h = calculateAltitude(p);
-    let spo2Exp = calculateExpectedSpO2(h);
+    let spo2Exp = calculateExpectedSpO2(p); // takes barometric pressure directly
     let pao2 = calculatePaO2(spo2);
     let ss = calculateSystemicShock(hr, spo2, sbp);
     
     vH.innerText = p > 0 ? Math.round(h) : '--';
-    vSpo2Exp.innerText = h > 0 ? spo2Exp.toFixed(1) : '--';
+    vSpo2Exp.innerText = p > 0 ? spo2Exp.toFixed(1) : '--';
     vPao2.innerText = pao2 > 0 ? pao2.toFixed(1) : '--';
     vSs.innerText = ss > 0 ? ss.toFixed(4) : '--';
     vDp.innerText = dp.toFixed(1);
