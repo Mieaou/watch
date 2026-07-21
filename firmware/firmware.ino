@@ -61,6 +61,12 @@ bool bmpOk = false;
 bool scdOk = false;
 bool maxOk = false;
 
+void setup() {
+  // SAFETY: Seeed Studio Xiao D14 Hardware Bug Prevention
+  // Force D14 to LOW so battery voltage doesn't fry the board while charging
+  pinMode(14, OUTPUT);
+  digitalWrite(14, LOW);
+
   Serial.begin(115200);
   // delay(2000); // Wait for Serial Monitor to connect
   Wire.begin();
