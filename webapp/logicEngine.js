@@ -1,7 +1,7 @@
 // logicEngine.js
 
 function evaluateLogic(hr, spo2, p, co2, dp, sbp, errMask = 0) {
-    // Hardware Errors
+    // Hardware Errors - Keep hardcoded as they are fundamental device state
     if (errMask > 0) {
         let offlineList = [];
         if (errMask & 1) offlineList.push("Барометр BMP388");
@@ -10,7 +10,7 @@ function evaluateLogic(hr, spo2, p, co2, dp, sbp, errMask = 0) {
         return { type: 'ОШИБКА', text: `Не обнаружены датчики на шине I2C: ${offlineList.join(', ')}. Проверьте подключение/питание!`, color: 'red' };
     }
 
-    // Quality Checks
+    // Quality Checks - Keep hardcoded as they are fundamental sensor validity
     if (spo2 > 0 && (spo2 < 50 || spo2 > 100 || hr < 30 || hr > 220)) {
         return { type: 'ОШИБКА', text: 'Датчик пульсоксиметра смещен. Поправьте устройство на пальце/запястье.', color: 'red' };
     }
@@ -21,73 +21,49 @@ function evaluateLogic(hr, spo2, p, co2, dp, sbp, errMask = 0) {
         return { type: 'ОШИБКА', text: 'Показания барометра вне допустимого диапазона.', color: 'red' };
     }
 
-    let result = { type: 'СОВЕТ', text: 'Подключено. Идет сбор данных...', color: 'default' };
-    let riskLevel = 0; // 0=none, 1=low, 2=med, 3=crit
+    let defaultResult = { type: 'СОВЕТ', text: 'Подключено. Идет сбор данных...', color: 'default' };
     
-    let ss = calculateSystemicShock(hr, spo2, sbp);
-    
-    // 1. Critical cardio-respiratory check
-    if (ss >= 0.011 && spo2 > 0 && spo2 < 90) {
-        return { type: 'ПРИКАЗ', text: 'Опасное кардио-респираторное напряжение! Немедленно присядьте, отдохните и вызовите помощь.', color: 'red' };
+    // Prepare data context for scenarios
+    let h = 0, expSpo2 = 0, ss = 0;
+    if (p > 0) {
+        h = calculateAltitude(p);
+        expSpo2 = calculateExpectedSpO2(h);
     }
-    
-    // 2. Oxygen & Altitude checks
-    if (p > 950) { // Sea level
-        if (spo2 > 0 && spo2 < 90) {
-            return { type: 'ПРИКАЗ', text: 'Тяжелая гипоксемия! Срочно вызовите врача или обеспечьте подачу кислорода.', color: 'red' };
-        } else if (spo2 >= 90 && spo2 < 95) {
-            if (riskLevel < 2) {
-                result = { type: 'ВНИМАНИЕ', text: 'Легкая тканевая гипоксия. Расправьте спину и сделайте несколько глубоких вдохов.', color: 'orange' };
-                riskLevel = 2;
-            }
-        } else if (spo2 >= 95) {
-            if (riskLevel < 1) {
-                result = { type: 'СОВЕТ', text: 'Кислородный баланс организма в норме.', color: 'green' };
-            }
-        }
-    } else if (p > 0 && p <= 950) { // Altitude
-        let h = calculateAltitude(p);
-        let expSpo2 = calculateExpectedSpO2(h);
-        if (spo2 > 0 && (spo2 < expSpo2 - 5 || spo2 < 80)) {
-            return { type: 'ПРИКАЗ', text: 'Риск острой горной болезни! Прекратите восхождение и немедленно начните контролируемый спуск вниз.', color: 'red' };
-        } else if (spo2 >= expSpo2 - 5 && spo2 < expSpo2 - 2) {
-            if (riskLevel < 2) {
-                result = { type: 'ВНИМАНИЕ', text: `Высотная гипоксия на ${Math.round(h)} метрах. Сделайте привал, пейте больше воды, не поднимайтесь выше сегодня.`, color: 'orange' };
-                riskLevel = 2;
-            }
-        } else if (spo2 >= expSpo2 - 2) {
-            if (riskLevel < 1) {
-                result = { type: 'СОВЕТ', text: `Отличная адаптация на высоте ${Math.round(h)} метров. Можете продолжать восхождение в умеренном темпе.`, color: 'green' };
+    if (hr > 0 && spo2 > 0 && sbp > 0) {
+        ss = calculateSystemicShock(hr, spo2, sbp);
+    }
+
+    const dataContext = {
+        hr, spo2, p, co2, dp, sbp, h, expSpo2, ss
+    };
+
+    let highestPriority = -1;
+    let selectedResult = null;
+
+    // Helper to evaluate a category of scenarios
+    const evaluateCategory = (category) => {
+        if (!category) return;
+        for (let rule of category) {
+            if (rule.condition(dataContext)) {
+                if (rule.priority > highestPriority) {
+                    highestPriority = rule.priority;
+                    selectedResult = typeof rule.result === 'function' ? rule.result(dataContext) : rule.result;
+                }
             }
         }
+    };
+
+    // Evaluate all categories
+    evaluateCategory(scenarios.cardio);
+    
+    if (p > 950) {
+        evaluateCategory(scenarios.seaLevel);
+    } else if (p > 0 && p <= 950) {
+        evaluateCategory(scenarios.altitude);
     }
     
-    // 3. CO2 checks (independent of altitude)
-    if (co2 >= 2000) {
-        if (riskLevel < 3) return { type: 'ПРИКАЗ', text: 'Опасная душная среда! Риск головной боли. Откройте окна настежь или выйдите на воздух.', color: 'red' };
-    } else if (co2 >= 1200) {
-        if (riskLevel < 2) {
-            result = { type: 'ВНИМАНИЕ', text: 'Снижение концентрации и внимания. Немедленно откройте окно!', color: 'orange' };
-            riskLevel = 2;
-        }
-    } else if (co2 >= 800) {
-        if (riskLevel < 1) {
-            result = { type: 'СОВЕТ', text: 'Воздух становится несвежим. Рекомендуется слегка проветрить помещение.', color: 'yellow' };
-            riskLevel = 1;
-        }
-    } else if (co2 > 0 && co2 < 800) {
-        if (riskLevel === 0) { 
-            result = { type: 'СОВЕТ', text: 'Воздух свежий. Качество окружающей среды отличное.', color: 'green' };
-        }
-    }
-    
-    // 4. Pressure drops
-    if (dp <= -5 && p > 0) {
-        if (riskLevel < 1) {
-            result = { type: 'СОВЕТ', text: 'Быстрое падение атмосферного давления. Риск барометрической головной боли. Избегайте кофеина.', color: 'yellow' };
-            riskLevel = 1;
-        }
-    }
-    
-    return result;
+    evaluateCategory(scenarios.co2);
+    evaluateCategory(scenarios.pressureDrops);
+
+    return selectedResult || defaultResult;
 }

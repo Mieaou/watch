@@ -9,6 +9,11 @@ const modalSettings = document.getElementById('modal-settings');
 const btnSaveSettings = document.getElementById('btn-save-settings');
 const inputSbp = document.getElementById('input-sbp');
 
+const modalInfo = document.getElementById('modal-info');
+const infoTitle = document.getElementById('info-title');
+const infoDesc = document.getElementById('info-desc');
+const btnCloseInfo = document.getElementById('btn-close-info');
+
 const tabSimple = document.getElementById('tab-simple');
 const tabAdvanced = document.getElementById('tab-advanced');
 const viewSimple = document.getElementById('view-simple');
@@ -47,6 +52,21 @@ btnSaveSettings.addEventListener('click', () => {
     sbp = parseInt(inputSbp.value) || 120;
     localStorage.setItem('sbp', sbp);
     modalSettings.classList.add('hidden');
+});
+
+btnCloseInfo.addEventListener('click', () => {
+    modalInfo.classList.add('hidden');
+});
+
+document.querySelectorAll('.btn-info').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const paramId = btn.getAttribute('data-param');
+        if (parameterInfo && parameterInfo[paramId]) {
+            infoTitle.innerText = parameterInfo[paramId].title;
+            infoDesc.innerText = parameterInfo[paramId].description;
+            modalInfo.classList.remove('hidden');
+        }
+    });
 });
 
 tabSimple.addEventListener('click', () => {

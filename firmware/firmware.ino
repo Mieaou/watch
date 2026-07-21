@@ -4,6 +4,7 @@
 #include <SensirionI2cScd4x.h>
 #include "MAX30105.h" // SparkFun MAX3010x library
 #include "heartRate.h" // SparkFun MAX3010x library for HR calculation
+#include "spo2_algorithm.h" // SparkFun MAX3010x library for SpO2 calculation
 
 // ==========================================
 // SENSOR INSTANCES
@@ -29,13 +30,15 @@ bool historyFilled = false;
 unsigned long lastMinuteMillis = 0;
 unsigned long lastTxMillis = 0;
 
-// Pulse tracking
-const byte RATE_SIZE = 4; // Increase for more averaging. 4 is good.
-byte rates[RATE_SIZE]; 
-byte rateSpot = 0;
-long lastBeat = 0;
-float beatsPerMinute;
-int beatAvg;
+// Pulse and SpO2 tracking (Maxim Algorithm)
+uint32_t irBuffer[100]; // infrared LED sensor data
+uint32_t redBuffer[100]; // red LED sensor data
+int32_t bufferLength = 100; // data length
+int32_t spo2; // SPO2 value
+int8_t validSPO2; // indicator to show if the SPO2 calculation is valid
+int32_t heartRate; // heart rate value
+int8_t validHeartRate; // indicator to show if the heart rate calculation is valid
+int sampleCount = 0; // current index in the buffer
 
 // Variables
 float currentPressure = 0.0;
@@ -50,6 +53,11 @@ bool scdOk = false;
 bool maxOk = false;
 
 void setup() {
+  // SAFETY: Seeed Studio Xiao D14 Hardware Bug Prevention
+  // Force D14 to LOW so battery voltage doesn't fry the board while charging
+  pinMode(14, OUTPUT);
+  digitalWrite(14, LOW);
+
   Serial.begin(115200);
   delay(2000); // Wait for Serial Monitor to connect
   Wire.begin();
@@ -158,9 +166,12 @@ void initMAX30105() {
     Serial.println("MAX30105 was not found. Please check wiring/power. ");
     maxOk = false;
   } else {
-    particleSensor.setup(); 
-    particleSensor.setPulseAmplitudeRed(0x0A);
-    particleSensor.setPulseAmplitudeGreen(0); 
+    // Configure sensor for SpO2 (Red + IR)
+    // Default setup is fine, but we ensure both LEDs are powered
+    particleSensor.setup(60, 4, 2, 100, 411, 4096); // LED mode 2 (Red + IR), 100Hz, 16-bit ADC
+    particleSensor.setPulseAmplitudeRed(0x0A); // Turn Red LED to low to medium
+    particleSensor.setPulseAmplitudeIR(0x0A);  // Turn IR LED to low to medium
+    particleSensor.setPulseAmplitudeGreen(0);  // Turn off Green LED
     maxOk = true;
   }
 }
@@ -183,28 +194,48 @@ void processSensors() {
 
   // MAX30105
   if (maxOk) {
-    long irValue = particleSensor.getIR();
-    long redValue = particleSensor.getRed();
+    particleSensor.check(); // Check the sensor, read up to 3 samples
     
-    if (checkForBeat(irValue) == true) {
-      long delta = millis() - lastBeat;
-      lastBeat = millis();
-      beatsPerMinute = 60 / (delta / 1000.0);
-      if (beatsPerMinute < 255 && beatsPerMinute > 20) {
-        rates[rateSpot++] = (byte)beatsPerMinute;
-        rateSpot %= RATE_SIZE;
-        beatAvg = 0;
-        for (byte x = 0 ; x < RATE_SIZE ; x++) beatAvg += rates[x];
-        beatAvg /= RATE_SIZE;
+    while (particleSensor.available()) {
+      // Read data into buffer
+      redBuffer[sampleCount] = particleSensor.getFIFORed();
+      irBuffer[sampleCount] = particleSensor.getFIFOIR();
+      particleSensor.nextSample(); // We're finished with this sample so move to next sample
+      
+      sampleCount++;
+      
+      if (sampleCount >= 100) {
+        // Calculate heart rate and SpO2 using Maxim's algorithm
+        maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+        
+        // Update variables if finger is present and values are valid
+        if (irBuffer[99] > 50000) {
+          if (validSPO2 == 1 && spo2 > 50 && spo2 <= 100) {
+            currentSpO2 = spo2;
+          }
+          if (validHeartRate == 1 && heartRate > 30 && heartRate < 220) {
+            currentHR = heartRate;
+          }
+        } else {
+          // No finger detected
+          currentSpO2 = 0;
+          currentHR = 0;
+        }
+
+        // Shift the last 25 samples to the beginning of the buffer
+        // This provides continuous monitoring every 25 samples (0.25 seconds)
+        for (byte i = 25; i < 100; i++) {
+          redBuffer[i - 25] = redBuffer[i];
+          irBuffer[i - 25] = irBuffer[i];
+        }
+        sampleCount = 75; // continue filling from 75 to 100
       }
     }
-
-    if (irValue > 50000) { 
-      currentHR = beatAvg;
-      currentSpO2 = 98; // Placeholder for when finger is present
-    } else {
-      currentHR = 0;
+    
+    // Quick fallback: clear values if finger is removed instantly
+    if (sampleCount > 0 && irBuffer[sampleCount - 1] < 50000) {
       currentSpO2 = 0;
+      currentHR = 0;
     }
   }
 }

@@ -42,19 +42,19 @@
             <div id="view-simple" class="view active">
                 <div class="grid">
                     <div class="card metric">
-                        <div class="label">Heart Rate</div>
+                        <div class="label">Heart Rate <button class="btn-info" data-param="hr">i</button></div>
                         <div class="value"><span id="val-hr">--</span> <span class="unit">bpm</span></div>
                     </div>
                     <div class="card metric">
-                        <div class="label">SpO2</div>
+                        <div class="label">SpO2 <button class="btn-info" data-param="spo2">i</button></div>
                         <div class="value"><span id="val-spo2">--</span> <span class="unit">%</span></div>
                     </div>
                     <div class="card metric">
-                        <div class="label">CO2 Level</div>
+                        <div class="label">CO2 Level <button class="btn-info" data-param="co2">i</button></div>
                         <div class="value"><span id="val-co2">--</span> <span class="unit">ppm</span></div>
                     </div>
                     <div class="card metric">
-                        <div class="label">Pressure</div>
+                        <div class="label">Pressure <button class="btn-info" data-param="p">i</button></div>
                         <div class="value"><span id="val-p">--</span> <span class="unit">hPa</span></div>
                     </div>
                 </div>
@@ -64,23 +64,23 @@
             <div id="view-advanced" class="view hidden">
                 <div class="grid">
                     <div class="card metric">
-                        <div class="label">Altitude (h)</div>
+                        <div class="label">Altitude (h) <button class="btn-info" data-param="h">i</button></div>
                         <div class="value"><span id="val-h">--</span> <span class="unit">m</span></div>
                     </div>
                     <div class="card metric">
-                        <div class="label">Expected SpO2</div>
+                        <div class="label">Expected SpO2 <button class="btn-info" data-param="spo2_exp">i</button></div>
                         <div class="value"><span id="val-spo2-exp">--</span> <span class="unit">%</span></div>
                     </div>
                     <div class="card metric">
-                        <div class="label">PaO2</div>
+                        <div class="label">PaO2 <button class="btn-info" data-param="pao2">i</button></div>
                         <div class="value"><span id="val-pao2">--</span> <span class="unit">mmHg</span></div>
                     </div>
                     <div class="card metric">
-                        <div class="label">Systemic Shock (SS)</div>
+                        <div class="label">Systemic Shock (SS) <button class="btn-info" data-param="ss">i</button></div>
                         <div class="value"><span id="val-ss">--</span></div>
                     </div>
                     <div class="card metric">
-                        <div class="label">ΔP (3 hours)</div>
+                        <div class="label">ΔP (3 hours) <button class="btn-info" data-param="dp">i</button></div>
                         <div class="value"><span id="val-dp">--</span> <span class="unit">hPa</span></div>
                     </div>
                 </div>
@@ -108,6 +108,18 @@
         </div>
     </div>
 
+    <!-- Parameter Info Modal -->
+    <div id="modal-info" class="modal hidden">
+        <div class="modal-content card">
+            <h2 id="info-title">Parameter</h2>
+            <p id="info-desc" style="line-height: 1.5; color: var(--text-muted); margin-bottom: 24px;">Description goes here.</p>
+            <div class="modal-actions">
+                <button id="btn-close-info" class="btn primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="scenarios.js"></script>
     <script src="mathCore.js"></script>
     <script src="logicEngine.js"></script>
     <script src="app.js"></script>
