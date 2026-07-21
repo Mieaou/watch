@@ -165,6 +165,7 @@ function updateDashboard(data) {
     let dp = data.dp || 0;
     let b = data.b !== undefined ? data.b : '--';
     let e = data.e !== undefined ? data.e : 0;
+    let f = data.f === 1; // finger present flag
     
     // Update Simple UI
     vHr.innerText = hr || '--';
@@ -172,6 +173,23 @@ function updateDashboard(data) {
     vP.innerText = p ? p.toFixed(1) : '--';
     vCo2.innerText = co2 || '--';
     vBatt.innerText = b;
+
+    // Toggle collecting animation
+    const hrCard = vHr.closest('.metric');
+    const spo2Card = vSpo2.closest('.metric');
+    const pao2Card = vPao2.closest('.metric');
+    const ssCard = vSs.closest('.metric');
+    if (f) {
+        if (hrCard) hrCard.classList.add('collecting');
+        if (spo2Card) spo2Card.classList.add('collecting');
+        if (pao2Card) pao2Card.classList.add('collecting');
+        if (ssCard) ssCard.classList.add('collecting');
+    } else {
+        if (hrCard) hrCard.classList.remove('collecting');
+        if (spo2Card) spo2Card.classList.remove('collecting');
+        if (pao2Card) pao2Card.classList.remove('collecting');
+        if (ssCard) ssCard.classList.remove('collecting');
+    }
     
     // Update Advanced UI (Math Core)
     let h = calculateAltitude(p);

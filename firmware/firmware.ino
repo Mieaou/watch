@@ -36,9 +36,18 @@ uint32_t redBuffer[100]; // red LED sensor data
 int32_t bufferLength = 100; // data length
 int32_t spo2; // SPO2 value
 int8_t validSPO2; // indicator to show if the SPO2 calculation is valid
-int32_t heartRate; // heart rate value
-int8_t validHeartRate; // indicator to show if the heart rate calculation is valid
+int32_t dummyHR; // heart rate value (unused, we use fast checkForBeat)
+int8_t dummyValidHR; // indicator to show if the heart rate calculation is valid
 int sampleCount = 0; // current index in the buffer
+
+// Fast HR tracking variables
+const byte RATE_SIZE = 4;
+byte rates[RATE_SIZE];
+byte rateSpot = 0;
+long lastBeat = 0;
+float beatsPerMinute;
+int beatAvg;
+bool fingerPresent = false;
 
 // Variables
 float currentPressure = 0.0;
@@ -52,40 +61,10 @@ bool bmpOk = false;
 bool scdOk = false;
 bool maxOk = false;
 
-void setup() {
-  // SAFETY: Seeed Studio Xiao D14 Hardware Bug Prevention
-  // Force D14 to LOW so battery voltage doesn't fry the board while charging
-  pinMode(14, OUTPUT);
-  digitalWrite(14, LOW);
-
   Serial.begin(115200);
-  delay(2000); // Wait for Serial Monitor to connect
+  // delay(2000); // Wait for Serial Monitor to connect
   Wire.begin();
   
-  // I2C Scanner
-  Serial.println("Scanning I2C bus...");
-  int nDevices = 0;
-  for (byte address = 1; address < 127; address++) {
-    Wire.beginTransmission(address);
-    byte error = Wire.endTransmission();
-    if (error == 0) {
-      Serial.print("I2C device found at address 0x");
-      if (address < 16) Serial.print("0");
-      Serial.print(address, HEX);
-      Serial.println(" !");
-      nDevices++;
-    } else if (error == 4) {
-      Serial.print("Unknown I2C error at address 0x");
-      if (address < 16) Serial.print("0");
-      Serial.println(address, HEX);
-    }
-  }
-  if (nDevices == 0) {
-    Serial.println("No I2C devices found. Check wiring!");
-  } else {
-    Serial.println("I2C scan complete.");
-  }
-
   // Set ADC resolution for battery voltage
   analogReadResolution(12);
 
@@ -198,28 +177,44 @@ void processSensors() {
     
     while (particleSensor.available()) {
       // Read data into buffer
+      long irValue = particleSensor.getFIFOIR();
       redBuffer[sampleCount] = particleSensor.getFIFORed();
-      irBuffer[sampleCount] = particleSensor.getFIFOIR();
+      irBuffer[sampleCount] = irValue;
       particleSensor.nextSample(); // We're finished with this sample so move to next sample
       
+      // Fast HR Check (per sample)
+      if (irValue > 50000) {
+        fingerPresent = true;
+        if (checkForBeat(irValue) == true) {
+          long delta = millis() - lastBeat;
+          lastBeat = millis();
+          beatsPerMinute = 60 / (delta / 1000.0);
+          if (beatsPerMinute < 255 && beatsPerMinute > 20) {
+            rates[rateSpot++] = (byte)beatsPerMinute;
+            rateSpot %= RATE_SIZE;
+            beatAvg = 0;
+            for (byte x = 0 ; x < RATE_SIZE ; x++) beatAvg += rates[x];
+            beatAvg /= RATE_SIZE;
+            currentHR = beatAvg; // Update HR instantly!
+          }
+        }
+      } else {
+        fingerPresent = false;
+        currentHR = 0;
+        currentSpO2 = 0;
+      }
+
       sampleCount++;
       
       if (sampleCount >= 100) {
-        // Calculate heart rate and SpO2 using Maxim's algorithm
-        maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+        // Calculate SpO2 using Maxim's algorithm
+        maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &dummyHR, &dummyValidHR);
         
         // Update variables if finger is present and values are valid
-        if (irBuffer[99] > 50000) {
+        if (fingerPresent) {
           if (validSPO2 == 1 && spo2 > 50 && spo2 <= 100) {
             currentSpO2 = spo2;
           }
-          if (validHeartRate == 1 && heartRate > 30 && heartRate < 220) {
-            currentHR = heartRate;
-          }
-        } else {
-          // No finger detected
-          currentSpO2 = 0;
-          currentHR = 0;
         }
 
         // Shift the last 25 samples to the beginning of the buffer
@@ -230,12 +225,6 @@ void processSensors() {
         }
         sampleCount = 75; // continue filling from 75 to 100
       }
-    }
-    
-    // Quick fallback: clear values if finger is removed instantly
-    if (sampleCount > 0 && irBuffer[sampleCount - 1] < 50000) {
-      currentSpO2 = 0;
-      currentHR = 0;
     }
   }
 }
@@ -296,7 +285,8 @@ void sendDataOverBLE() {
   json += "\"co2\":" + String(co2) + ",";
   json += "\"dp\":" + String(deltaP3h, 2) + ",";
   json += "\"b\":" + String(batt) + ",";
-  json += "\"e\":" + String(errMask);
+  json += "\"e\":" + String(errMask) + ",";
+  json += "\"f\":" + String(fingerPresent ? 1 : 0);
   json += "}";
 
   txChar.writeValue(json);
