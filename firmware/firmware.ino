@@ -214,17 +214,43 @@ void processSensors() {
       sampleCount++;
       
       if (sampleCount >= 100) {
-        // Calculate SpO2 and HR using Maxim's algorithm
-        maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+        // Evaluate AC amplitude to distinguish living pulsating tissue from paper/table.
+        // Paper has high reflection (high DC) but virtually zero pulse amplitude (AC).
+        uint32_t minIR = irBuffer[0];
+        uint32_t maxIR = irBuffer[0];
+        uint64_t sumIR = 0;
+        for (int i = 0; i < 100; i++) {
+          if (irBuffer[i] < minIR) minIR = irBuffer[i];
+          if (irBuffer[i] > maxIR) maxIR = irBuffer[i];
+          sumIR += irBuffer[i];
+        }
+        uint32_t acIR = maxIR - minIR;
+        uint32_t dcIR = sumIR / 100;
         
-        // Update variables if finger is present and values are valid
+        // Thresholds:
+        // 1. acIR < 100: Raw ADC fluctuations are too low (typical human heart pulse AC is 200 - 2000 counts)
+        // 2. acIR * 1000 / dcIR < 2: Pulse amplitude is less than 0.2% of DC signal (flat/static target)
+        bool staticReflector = (acIR < 100) || ((dcIR > 0) && ((acIR * 1000) / dcIR < 2));
+
+        if (staticReflector) {
+          fingerPresent = false;
+          currentHR = 0;
+          currentSpO2 = 0;
+        }
+
         if (fingerPresent) {
+          // Calculate SpO2 and HR using Maxim's algorithm
+          maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+          
           if (validSPO2 == 1 && spo2 > 50 && spo2 <= 100) {
             currentSpO2 = spo2;
           }
           if (validHeartRate == 1 && heartRate > 30 && heartRate < 220) {
             currentHR = heartRate;
           }
+        } else {
+          currentHR = 0;
+          currentSpO2 = 0;
         }
 
         // Shift the last 25 samples to the beginning of the buffer
